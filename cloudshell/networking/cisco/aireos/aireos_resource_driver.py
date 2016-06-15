@@ -2,11 +2,14 @@ from cloudshell.networking.cisco.aireos.aireos_bootstrap import AireOSBootstrap
 from cloudshell.networking.cisco.aireos.operations.aireos_connectivity import AireOSConnectivity
 from cloudshell.networking.networking_resource_driver_interface import NetworkingResourceDriverInterface
 from cloudshell.shell.core.resource_driver_interface import ResourceDriverInterface
+from cloudshell.shell.core.context_utils import ContextFromArgsMeta
 import cloudshell.networking.cisco.aireos.aireos_config as driver_config
 from cloudshell.networking.cisco.aireos.operations.aireos_autoload import AireOSAutoload
 
 
 class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInterface):
+    __metaclass__ = ContextFromArgsMeta
+
     def __init__(self):
         self._autoload = None
         self._connectivity = None
