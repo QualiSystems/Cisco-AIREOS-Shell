@@ -6,27 +6,37 @@ import inject
 from cloudshell.configuration.cloudshell_snmp_binding_keys import SNMP_HANDLER
 from cloudshell.configuration.cloudshell_shell_core_binding_keys import LOGGER
 from cloudshell.shell.core.driver_context import AutoLoadDetails
+import os
 import re
 
 
 class AireOSAutoload(AutoloadOperationsInterface):
     PORT_DESCRIPTION_FILTER = [r'[Vv]irtual', r'[Cc]hannel']
 
-    def __init__(self):
-        self._snmp_handler = None
+    def __init__(self, snmp_hander=None, logger=None):
+        self._snmp_handler = snmp_hander
         self._root = RootElement()
         self._chassis = None
         self._ports = {}
         self._snmp_cache = {}
+        self._logger = logger
 
     @property
     def snmp_handler(self):
         if self._snmp_handler is None:
-            self._snmp_handler = inject.instance(SNMP_HANDLER)
+            self.snmp_handler = inject.instance(SNMP_HANDLER)
         return self._snmp_handler
+
+    @snmp_handler.setter
+    def snmp_handler(self, snmp_handler):
+        self._snmp_handler = snmp_handler
+        path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'mibs'))
+        self._snmp_handler.update_mib_sources(path)
 
     @property
     def logger(self):
+        if self._logger is not None:
+            return self._logger
         return inject.instance(LOGGER)
 
     def _snmp_request(self, request_data):
@@ -106,16 +116,19 @@ class AireOSAutoload(AutoloadOperationsInterface):
             port = Port(port_index, self._convert_port_description(port_description))
             port_attributes = dict()
             port_attributes[PortAttributes.PORT_DESCRIPTION] = self._snmp_request(('IF-MIB', 'ifAlias', index))
-            port_attributes[PortAttributes.L2_PROTOCOL_TYPE] = self._get_from_table('ifType', table)
+            port_attributes[PortAttributes.L2_PROTOCOL_TYPE] = str(self._get_from_table('ifType', table)).replace(
+                """'""", '')
             port_attributes[PortAttributes.MAC_ADDRESS] = self._get_from_table('ifPhysAddress', table)
             port_attributes[PortAttributes.MTU] = self._get_from_table('ifMtu', table)
             port_attributes[PortAttributes.BANDWIDTH] = self._get_from_table('ifSpeed', table)
             port_attributes[PortAttributes.IPV4_ADDRESS] = self._find_associated_ipv4(index)
             port_attributes[PortAttributes.IPV6_ADDRESS] = self._find_associated_ipv6(index)
+            port_attributes[PortAttributes.DUPLEX] = self._get_duplex(index)
+            port_attributes[PortAttributes.AUTO_NEGOTIATION] = self._get_autonegotiation(index)
+            # port_attributes[PortAttributes.ADJACENT] = self._get_adjacent(index)
             port.build_attributes(port_attributes)
             self._ports[port_index] = port
             self._chassis.ports.append(port)
-            del (if_mib_table[index])
 
     def _build_port_channels(self):
         if_mib_table = self._snmp_request(('IF-MIB', 'ifTable'))
@@ -132,7 +145,59 @@ class AireOSAutoload(AutoloadOperationsInterface):
                 pc_attributes[PortChannelAttributes.ASSOCIATED_PORTS] = self._get_associated_ports(index)
                 port.build_attributes(pc_attributes)
                 self._root.port_channels.append(port)
-                del (if_mib_table[index])
+
+    def _get_duplex(self, index):
+        duplex_table = self._snmp_request(('EtherLike-MIB', 'dot3StatsDuplexStatus'))
+        duplex = None
+        if len(duplex_table) > 0:
+            if index in duplex_table:
+                duplex = duplex_table[index]
+        return duplex
+
+    def _get_autonegotiation(self, index):
+        """Get Autonegotiation for interface
+
+        :param index: port id
+        :return: Autonegotiation for interface
+        :rtype string
+        """
+        autoneg = 'False'
+        try:
+            auto_negotiation = self.snmp_handler.get(('MAU-MIB', 'ifMauAutoNegAdminStatus', index, 1)).values()[0]
+            if 'enabled' in auto_negotiation.lower():
+                autoneg = 'True'
+        except Exception as e:
+            self.logger.error('Failed to load auto negotiation property for interface {0}'.format(e.message))
+        return autoneg
+
+    def _get_adjacent(self, interface_id):
+        """Get connected device interface and device name to the specified port id, using cdp or lldp protocols
+
+        :param interface_id: port id
+        :return: device's name and port connected to port id
+        :rtype string
+        """
+
+        lldp_local_table = self._snmp_request(('LLDP-MIB', 'lldpLocPortDesc'))
+        lldp_remote_table = self._snmp_request(('LLDP-MIB', 'lldpRemTable'))
+        # cdp_index_table = self._snmp_request(('CISCO-CDP-MIB', 'cdpInterface'))
+        cdp_table = self._snmp_request(('CISCO-CDP-MIB', 'cdpCacheTable'))
+
+        result = ''
+        for key, value in cdp_table.iteritems():
+            if 'cdpCacheDeviceId' in value and 'cdpCacheDevicePort' in value:
+                if re.search('^\d+', str(key)).group(0) == interface_id:
+                    result = '{0} through {1}'.format(value['cdpCacheDeviceId'], value['cdpCacheDevicePort'])
+        if result == '' and lldp_remote_table:
+            for key, value in lldp_local_table.iteritems():
+                interface_name = self._snmp_request(('IF-MIB', 'ifTable'))[interface_id]['ifDescr']
+                if interface_name == '':
+                    break
+                if 'lldpLocPortDesc' in value and interface_name in value['lldpLocPortDesc']:
+                    if 'lldpRemSysName' in lldp_remote_table and 'lldpRemPortDesc' in lldp_remote_table:
+                        result = '{0} through {1}'.format(lldp_remote_table[key]['lldpRemSysName'],
+                                                          lldp_remote_table[key]['lldpRemPortDesc'])
+        return result
 
     def _find_associated_ipv4(self, port_index):
         ip_addr_table = self._snmp_request(('IP-MIB', 'ipAddrTable'))
@@ -156,7 +221,7 @@ class AireOSAutoload(AutoloadOperationsInterface):
                 if key in self._ports:
                     phisical_port = self._ports[key]
                     if result:
-                        result += ','+phisical_port.name
+                        result += ',' + phisical_port.name
                     else:
                         result = phisical_port.name
         return result.strip(' \t\n\r')
