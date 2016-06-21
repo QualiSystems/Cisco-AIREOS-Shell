@@ -1,5 +1,6 @@
 from cloudshell.networking.cisco.aireos.aireos_bootstrap import AireOSBootstrap
 from cloudshell.networking.cisco.aireos.operations.aireos_connectivity import AireOSConnectivity
+from cloudshell.networking.cisco.aireos.operations.aireos_operations import AireOSOperations
 from cloudshell.networking.networking_resource_driver_interface import NetworkingResourceDriverInterface
 from cloudshell.shell.core.resource_driver_interface import ResourceDriverInterface
 from cloudshell.shell.core.context_utils import ContextFromArgsMeta
@@ -13,6 +14,7 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
     def __init__(self):
         self._autoload = None
         self._connectivity = None
+        self._operations = None
         bootstrap = AireOSBootstrap()
         bootstrap.add_config(driver_config)
         bootstrap.initialize()
@@ -29,11 +31,17 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
             self._connectivity = AireOSConnectivity()
         return self._connectivity
 
+    @property
+    def operations(self):
+        if self._operations is None:
+            self._operations = AireOSOperations()
+        return self._operations
+
     def get_inventory(self, context):
         return self.autoload.discover()
 
     def send_custom_command(self, context, command):
-        pass
+        return self.operations.send_command(command)
 
     def update_firmware(self, context, remote_host, file_path):
         pass
@@ -45,13 +53,13 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
         self.connectivity.apply_connectivity_changes(request)
 
     def send_custom_config_command(self, context, command):
-        pass
+        return self._operations.send_config_command(command)
 
     def restore(self, context, path, config_type, restore_method):
-        pass
+        return self.operations.restore_configuration(self, path, config_type, restore_method)
 
     def save(self, context, folder_path, configuration_type):
-        pass
+        return self.operations.save_configuration(self, folder_path, configuration_type)
 
     def initialize(self, context):
         pass
