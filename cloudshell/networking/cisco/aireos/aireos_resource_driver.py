@@ -50,7 +50,7 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
         pass
 
     def ApplyConnectivityChanges(self, context, request):
-        self.connectivity.apply_connectivity_changes(request)
+        return self.connectivity.apply_connectivity_changes(request)
 
     def send_custom_config_command(self, context, command):
         return self._operations.send_config_command(command)

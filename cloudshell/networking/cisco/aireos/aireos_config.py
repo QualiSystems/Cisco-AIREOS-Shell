@@ -25,3 +25,6 @@ CONNECTION_EXPECTED_MAP = OrderedDict({r'[Uu]ser:': lambda session: session.send
 EXPECTED_MAP = OrderedDict()
 
 GET_LOGGER_FUNCTION = get_logger_with_thread_id
+
+
+HE_MAX_READ_RETRIES = 30
