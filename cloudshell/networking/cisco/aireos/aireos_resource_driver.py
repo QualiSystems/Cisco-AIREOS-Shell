@@ -56,10 +56,10 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
         return self._operations.send_config_command(command)
 
     def restore(self, context, path, config_type, restore_method):
-        return self.operations.restore_configuration(self, path, config_type, restore_method)
+        return self.operations.restore_configuration(path, config_type, restore_method)
 
     def save(self, context, folder_path, configuration_type):
-        return self.operations.save_configuration(self, folder_path, configuration_type)
+        return self.operations.save_configuration(folder_path, configuration_type)
 
     def initialize(self, context):
         pass
