@@ -23,7 +23,6 @@ CONNECTION_EXPECTED_MAP = OrderedDict({r'[Uu]ser:': lambda session: session.send
                                        r'[Pp]assword:': lambda session: session.send_line(
                                            get_attribute_by_name('Password'))})
 
-
 GET_LOGGER_FUNCTION = get_logger_with_thread_id
 
 DEFAULT_PROMPT = r'[>$#]\s*$'
@@ -35,6 +34,6 @@ EXIT_CONFIG_MODE_PROMPT_COMMAND = ''
 COMMIT_COMMAND = ''
 ROLLBACK_COMMAND = ''
 
-
 HE_MAX_READ_RETRIES = 30
 
+ERROR_MAP = OrderedDict({r'[Ee]rror:': 'Command error, see logs for details'})
