@@ -227,7 +227,7 @@ class AireOSAutoload(AutoloadOperationsInterface):
         return result.strip(' \t\n\r')
 
     def _convert_port_description(self, description):
-        return description.replace('/', '-').replace(' ', '')
+        return description.replace('/', '-').replace(' ', '').replace(':', '-')
 
     def discover(self):
         self._build_root_elements()
