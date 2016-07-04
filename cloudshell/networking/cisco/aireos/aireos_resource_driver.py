@@ -1,5 +1,4 @@
 from cloudshell.networking.cisco.aireos.aireos_bootstrap import AireOSBootstrap
-from cloudshell.networking.cisco.aireos.operations.aireos_connectivity import AireOSConnectivity
 from cloudshell.networking.cisco.aireos.operations.aireos_operations import AireOSOperations
 from cloudshell.networking.networking_resource_driver_interface import NetworkingResourceDriverInterface
 from cloudshell.shell.core.driver_utils import GlobalLock
@@ -28,12 +27,6 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
         return self._autoload
 
     @property
-    def connectivity(self):
-        if self._connectivity is None:
-            self._connectivity = AireOSConnectivity()
-        return self._connectivity
-
-    @property
     def operations(self):
         if self._operations is None:
             self._operations = AireOSOperations()
@@ -53,7 +46,7 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
         pass
 
     def ApplyConnectivityChanges(self, context, request):
-        return self.connectivity.apply_connectivity_changes(request)
+        pass
 
     def send_custom_config_command(self, context, command):
         return self._operations.send_config_command(command)
