@@ -1,17 +1,18 @@
 from cloudshell.networking.cisco.aireos.aireos_bootstrap import AireOSBootstrap
-from cloudshell.networking.cisco.aireos.operations.aireos_connectivity import AireOSConnectivity
 from cloudshell.networking.cisco.aireos.operations.aireos_operations import AireOSOperations
 from cloudshell.networking.networking_resource_driver_interface import NetworkingResourceDriverInterface
+from cloudshell.shell.core.driver_utils import GlobalLock
 from cloudshell.shell.core.resource_driver_interface import ResourceDriverInterface
 from cloudshell.shell.core.context_utils import ContextFromArgsMeta
 import cloudshell.networking.cisco.aireos.aireos_config as driver_config
 from cloudshell.networking.cisco.aireos.operations.aireos_autoload import AireOSAutoload
 
 
-class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInterface):
+class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInterface, GlobalLock):
     __metaclass__ = ContextFromArgsMeta
 
     def __init__(self):
+        super(AireOSResourceDriver, self).__init__()
         self._autoload = None
         self._connectivity = None
         self._operations = None
@@ -26,12 +27,6 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
         return self._autoload
 
     @property
-    def connectivity(self):
-        if self._connectivity is None:
-            self._connectivity = AireOSConnectivity()
-        return self._connectivity
-
-    @property
     def operations(self):
         if self._operations is None:
             self._operations = AireOSOperations()
@@ -43,6 +38,7 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
     def send_custom_command(self, context, command):
         return self.operations.send_command(command)
 
+    @GlobalLock.lock
     def update_firmware(self, context, remote_host, file_path):
         pass
 
@@ -50,11 +46,12 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
         pass
 
     def ApplyConnectivityChanges(self, context, request):
-        return self.connectivity.apply_connectivity_changes(request)
+        pass
 
     def send_custom_config_command(self, context, command):
         return self._operations.send_config_command(command)
 
+    @GlobalLock.lock
     def restore(self, context, path, config_type, restore_method):
         return self.operations.restore_configuration(path, config_type, restore_method)
 
