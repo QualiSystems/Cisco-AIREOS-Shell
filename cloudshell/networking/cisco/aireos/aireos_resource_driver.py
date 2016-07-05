@@ -40,7 +40,7 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
 
     @GlobalLock.lock
     def update_firmware(self, context, remote_host, file_path):
-        pass
+        return self.operations.update_firmware(remote_host, file_path, None)
 
     def shutdown(self, context):
         pass
