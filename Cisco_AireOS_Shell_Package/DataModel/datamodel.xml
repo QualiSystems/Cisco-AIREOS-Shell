@@ -272,7 +272,11 @@
           <AllowedValues />
         </AttachedAttribute>
         <AttachedAttribute Name="SNMP Version" IsOverridable="true" IsLocal="true">
-          <AllowedValues />
+          <AllowedValues>
+            <AllowedValue>1</AllowedValue>
+            <AllowedValue>2</AllowedValue>
+            <AllowedValue>3</AllowedValue>
+          </AllowedValues>
         </AttachedAttribute>
         <AttachedAttribute Name="SNMP Write Community" IsOverridable="true" IsLocal="true">
           <AllowedValues />
@@ -314,7 +318,7 @@
         <AttributeValue Name="SNMP V3 Password" Value="" />
         <AttributeValue Name="SNMP V3 Private Key" Value="" />
         <AttributeValue Name="SNMP V3 User" Value="" />
-        <AttributeValue Name="SNMP Version" Value="" />
+        <AttributeValue Name="SNMP Version" Value="2" />
         <AttributeValue Name="SNMP Write Community" Value="" />
         <AttributeValue Name="Console Password" Value="3M3u7nkDzxWb0aJ/IZYeWw==" />
         <AttributeValue Name="Console Port" Value="0" />
