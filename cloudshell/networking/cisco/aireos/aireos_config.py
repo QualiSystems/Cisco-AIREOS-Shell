@@ -15,13 +15,12 @@ ssh_session.proxy = ReturnToPoolProxy
 ssh_session.kwargs = {'username': get_attribute_by_name_wrapper('User'),
                       'password': get_decrypted_password_by_attribute_name_wrapper('Password'),
                       # 'password': get_attribute_by_name_wrapper('Password'),
-                      'host': get_resource_address,
-                      'port': get_attribute_by_name_wrapper('Port')}
+                      'host': get_resource_address}
 CONNECTION_MAP[CONNECTION_TYPE_SSH] = ssh_session
 
 CONNECTION_EXPECTED_MAP = OrderedDict({r'[Uu]ser:': lambda session: session.send_line(get_attribute_by_name('User')),
                                        r'[Pp]assword:': lambda session: session.send_line(
-                                           get_attribute_by_name('Password'))})
+                                           get_decrypted_password_by_attribute_name_wrapper('Password')())})
 
 GET_LOGGER_FUNCTION = get_logger_with_thread_id
 
