@@ -58,16 +58,15 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
         else:
             backup_location = destination_host
 
-        destination_params = re.search(r'^(?P<protocol>.+)\://(?P<host>[^/\:]+)[\:]*(?P<port>\d*)(?P<path>/.+)$',
-                                       backup_location)
-        if not destination_params:
+        if not str(backup_location).endswith('/'):
+            backup_location += '/'
+        destination_dict = self._parse_url(backup_location)
+        if not destination_dict:
             raise Exception('AireOSOperations', 'Incorrect Backup location')
 
-        destination_dict = destination_params.groupdict()
         protocol = destination_dict['protocol']
         host = destination_dict['host']
         path = destination_dict['path']
-        port = destination_dict['port']
 
         self.logger.debug(
             'Datatype: {0}, Protocol: {1}, Host: {2}, Path: {3}, File: {4}'.format(config_type, protocol, host, path,
@@ -78,8 +77,15 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
         save_flow[save_restore.SAVE_CONFIGURATION_SERVERIP] = host
         save_flow[save_restore.SAVE_CONFIGURATION_FILENAME] = file_name
         save_flow[save_restore.SAVE_CONFIGURATION_PATH] = path
-        if port:
-            save_flow[save_restore.SAVE_CONFIGURATION_PORT] = port
+        user_key = 'user'
+        if user_key in destination_dict and destination_dict[user_key]:
+            save_flow[save_restore.SAVE_CONFIGURATION_USER] = destination_dict[user_key]
+        password_key = 'password'
+        if password_key in destination_dict and destination_dict[password_key]:
+            save_flow[save_restore.SAVE_CONFIGURATION_PASSWORD] = destination_dict[password_key]
+        port_key = 'port'
+        if port_key in destination_dict and destination_dict[port_key]:
+            save_flow[save_restore.SAVE_CONFIGURATION_PORT] = destination_dict[port_key]
         execute_command_map(save_flow, self.cli_service.send_command)
 
         expected_map = OrderedDict({r'[yY]/[nN]': lambda session: session.send_line('y')})
@@ -194,14 +200,18 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
         url_list = str(url).split('@')
         if len(url_list) == 1:
             url_params = re.search(
-                r'^(?P<protocol>.+)\://(?P<host>[^/\:\@]+)[\:]*(?P<port>\d*)(?P<path>/.+)\/(?P<filename>[^/]+)$',
+                r'^(?P<protocol>.+)\://(?P<host>[^/\:\@]+)[\:]*(?P<port>\d*)(?P<path>/.+)/+(?P<filename>[^/]*)$',
                 url_list[0])
+            if not url_params:
+                raise Exception(self.__class__.__name__, 'Cannot parse url {}'.format(url))
             url_dict = url_params.groupdict()
         elif len(url_list) == 2:
             url_params_1 = re.search(r'^(?P<protocol>.+)\://(?P<user>[^/\:\@]+)[\:]+(?P<password>[^/\:\@]+)$',
                                      url_list[0])
-            url_params_2 = re.search(r'^(?P<host>[^/\:\@]+)[\:]*(?P<port>\d*)(?P<path>/.+)\/(?P<filename>[^/]+)$',
+            url_params_2 = re.search(r'^(?P<host>[^/\:\@]+)[\:]*(?P<port>\d*)(?P<path>/.+)/+(?P<filename>[^/]*)$',
                                      url_list[1])
+            if not url_params_1 or not url_params_2:
+                raise Exception(self.__class__.__name__, 'Cannot parse url'.format(url))
             url_dict = url_params_1.groupdict()
             url_dict.update(url_params_2.groupdict())
         else:

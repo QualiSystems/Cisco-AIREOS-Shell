@@ -8,6 +8,8 @@ SAVE_CONFIGURATION_SERVERIP = CommandTemplate('transfer upload serverip {0}', [r
                                               ['Wrong upload serverip'])
 SAVE_CONFIGURATION_PORT = CommandTemplate('transfer upload port {0}', [r'.+'],
                                           ['Wrong upload port'])
+SAVE_CONFIGURATION_USER = CommandTemplate('transfer upload username {0}', [r'.+'], ['Wrong upload username'])
+SAVE_CONFIGURATION_PASSWORD = CommandTemplate('transfer upload password {0}', [r'.+'], ['Wrong upload password'])
 SAVE_CONFIGURATION_PATH = CommandTemplate('transfer upload path {0}', [r'.+'],
                                           ['Wrong upload path'])
 SAVE_CONFIGURATION_FILENAME = CommandTemplate('transfer upload filename {0}', [r'.+'],
