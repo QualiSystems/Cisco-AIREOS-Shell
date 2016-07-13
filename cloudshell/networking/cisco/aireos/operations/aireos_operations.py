@@ -1,5 +1,6 @@
 from collections import OrderedDict
 import time
+from urlparse import urlsplit
 
 from cloudshell.networking.operations.interfaces.configuration_operations_interface import \
     ConfigurationOperationsInterface
@@ -12,6 +13,7 @@ from cloudshell.shell.core.context_utils import get_attribute_by_name
 import cloudshell.networking.cisco.aireos.operations.templates.save_restore_configuration as save_restore
 from cloudshell.cli.command_template.command_template_service import execute_command_map
 import inject
+import os
 import re
 
 
@@ -58,34 +60,29 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
         else:
             backup_location = destination_host
 
-        if not str(backup_location).endswith('/'):
+        if not backup_location.endswith('/'):
             backup_location += '/'
-        destination_dict = self._parse_url(backup_location)
+        destination_dict = UrlParser.parse_url(backup_location)
         if not destination_dict:
             raise Exception('AireOSOperations', 'Incorrect Backup location')
+        self.logger.debug('Connection dict: ' + str(destination_dict))
 
-        protocol = destination_dict['protocol']
-        host = destination_dict['host']
-        path = destination_dict['path']
-
-        self.logger.debug(
-            'Datatype: {0}, Protocol: {1}, Host: {2}, Path: {3}, File: {4}'.format(config_type, protocol, host, path,
-                                                                                   file_name))
         save_flow = OrderedDict()
         save_flow[save_restore.SAVE_CONFIGURATION_DATATYPE] = config_type
-        save_flow[save_restore.SAVE_CONFIGURATION_MODE] = protocol
-        save_flow[save_restore.SAVE_CONFIGURATION_SERVERIP] = host
         save_flow[save_restore.SAVE_CONFIGURATION_FILENAME] = file_name
-        save_flow[save_restore.SAVE_CONFIGURATION_PATH] = path
-        user_key = 'user'
-        if user_key in destination_dict and destination_dict[user_key]:
-            save_flow[save_restore.SAVE_CONFIGURATION_USER] = destination_dict[user_key]
-        password_key = 'password'
-        if password_key in destination_dict and destination_dict[password_key]:
-            save_flow[save_restore.SAVE_CONFIGURATION_PASSWORD] = destination_dict[password_key]
-        port_key = 'port'
-        if port_key in destination_dict and destination_dict[port_key]:
-            save_flow[save_restore.SAVE_CONFIGURATION_PORT] = destination_dict[port_key]
+
+        template_flow = OrderedDict()
+        template_flow[save_restore.SAVE_CONFIGURATION_MODE] = UrlParser.SCHEME
+        template_flow[save_restore.SAVE_CONFIGURATION_SERVERIP] = UrlParser.HOSTNAME
+        template_flow[save_restore.SAVE_CONFIGURATION_PATH] = UrlParser.PATH
+        template_flow[save_restore.SAVE_CONFIGURATION_USER] = UrlParser.USERNAME
+        template_flow[save_restore.SAVE_CONFIGURATION_PASSWORD] = UrlParser.PASSWORD
+        template_flow[save_restore.SAVE_CONFIGURATION_PORT] = UrlParser.PORT
+        generated_flow = self._generate_flow(template_flow, destination_dict)
+        if save_restore.SAVE_CONFIGURATION_PATH not in generated_flow:
+            generated_flow[save_restore.SAVE_CONFIGURATION_PATH] = '/'
+
+        save_flow.update(generated_flow)
         execute_command_map(save_flow, self.cli_service.send_command)
 
         expected_map = OrderedDict({r'[yY]/[nN]': lambda session: session.send_line('y')})
@@ -101,38 +98,25 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
         if not source_file:
             raise Exception('AireOSOperations', 'Configuration URL cannot be empty')
 
-        connection_dict = self._parse_url(source_file)
+        connection_dict = UrlParser.parse_url(source_file)
+        self.logger.debug('Connection dict: ' + str(connection_dict))
 
         restore_flow = OrderedDict()
         datatype = 'config'
         restore_flow[save_restore.RESTORE_CONFIGURATION_DATATYPE] = datatype
-        protocol = connection_dict['protocol']
-        restore_flow[save_restore.RESTORE_CONFIGURATION_MODE] = protocol
-        if 'user' in connection_dict:
-            user = connection_dict['user']
-            self.logger.debug('Username: ' + user)
-            restore_flow[save_restore.RESTORE_CONFIGURATION_USER] = user
-        if 'password' in connection_dict:
-            password = connection_dict['password']
-            self.logger.debug('Password: ' + password)
-            restore_flow[save_restore.RESTORE_CONFIGURATION_PASSWORD] = password
 
-        host = connection_dict['host']
-        restore_flow[save_restore.RESTORE_CONFIGURATION_SERVERIP] = host
-        if 'port' in connection_dict:
-            port = connection_dict['port']
-            if port:
-                self.logger.debug('Port: ' + port)
-                restore_flow[save_restore.RESTORE_CONFIGURATION_PORT] = port
+        template_flow = OrderedDict()
+        template_flow[save_restore.RESTORE_CONFIGURATION_MODE] = UrlParser.SCHEME
+        template_flow[save_restore.RESTORE_CONFIGURATION_USER] = UrlParser.USERNAME
+        template_flow[save_restore.RESTORE_CONFIGURATION_PASSWORD] = UrlParser.PASSWORD
+        template_flow[save_restore.RESTORE_CONFIGURATION_SERVERIP] = UrlParser.HOSTNAME
+        template_flow[save_restore.RESTORE_CONFIGURATION_PORT] = UrlParser.PORT
+        template_flow[save_restore.RESTORE_CONFIGURATION_PATH] = UrlParser.PATH
+        template_flow[save_restore.RESTORE_CONFIGURATION_FILENAME] = UrlParser.FILENAME
 
-        path = connection_dict['path']
-        restore_flow[save_restore.RESTORE_CONFIGURATION_PATH] = path
-        file_name = connection_dict['filename']
-        restore_flow[save_restore.RESTORE_CONFIGURATION_FILENAME] = file_name
+        generated_flow = self._generate_flow(template_flow, connection_dict)
+        restore_flow.update(generated_flow)
 
-        self.logger.debug(
-            'Datatype: {0}, Protocol: {1}, Host: {2}, Path: {3}, File: {4}'.format(datatype, protocol, host, path,
-                                                                                   file_name))
         execute_command_map(restore_flow, self.cli_service.send_command)
 
         expected_map = OrderedDict({r'[yY]/[nN]': lambda session: session.send_line('y')})
@@ -156,38 +140,26 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
             file_path = file_path[1:]
 
         url = '{0}/{1}'.format(remote_host, file_path)
-        connection_dict = self._parse_url(url)
 
+        flow_template = OrderedDict()
+        flow_template[save_restore.RESTORE_CONFIGURATION_MODE] = UrlParser.SCHEME
+        flow_template[save_restore.RESTORE_CONFIGURATION_SERVERIP] = UrlParser.HOSTNAME
+        flow_template[save_restore.RESTORE_CONFIGURATION_PORT] = UrlParser.PORT
+        flow_template[save_restore.RESTORE_CONFIGURATION_PATH] = UrlParser.PATH
+        flow_template[save_restore.RESTORE_CONFIGURATION_FILENAME] = UrlParser.FILENAME
+        flow_template[save_restore.RESTORE_CONFIGURATION_USER] = UrlParser.USERNAME
+        flow_template[save_restore.RESTORE_CONFIGURATION_PASSWORD] = UrlParser.PASSWORD
+
+
+        # connection_dict = self._parse_url(url)
+        #
         restore_flow = OrderedDict()
         datatype = 'code'
         restore_flow[save_restore.RESTORE_CONFIGURATION_DATATYPE] = datatype
-        protocol = connection_dict['protocol']
-        restore_flow[save_restore.RESTORE_CONFIGURATION_MODE] = protocol
-        if 'user' in connection_dict:
-            user = connection_dict['user']
-            self.logger.debug('Username: ' + user)
-            restore_flow[save_restore.RESTORE_CONFIGURATION_USER] = user
-        if 'password' in connection_dict:
-            password = connection_dict['password']
-            self.logger.debug('Password: ' + password)
-            restore_flow[save_restore.RESTORE_CONFIGURATION_PASSWORD] = password
-
-        host = connection_dict['host']
-        restore_flow[save_restore.RESTORE_CONFIGURATION_SERVERIP] = host
-        if 'port' in connection_dict:
-            port = connection_dict['port']
-            if port:
-                self.logger.debug('Port: ' + port)
-                restore_flow[save_restore.RESTORE_CONFIGURATION_PORT] = port
-
-        path = connection_dict['path']
-        restore_flow[save_restore.RESTORE_CONFIGURATION_PATH] = path
-        file_name = connection_dict['filename']
-        restore_flow[save_restore.RESTORE_CONFIGURATION_FILENAME] = file_name
-
-        self.logger.debug(
-            'Datatype: {0}, Protocol: {1}, Host: {2}, Path: {3}, File: {4}'.format(datatype, protocol, host, path,
-                                                                                   file_name))
+        connection_dict = UrlParser.parse_url(url)
+        self.logger.debug('Connection dict: ' + str(connection_dict))
+        restore_flow.update(self._generate_flow(flow_template, connection_dict))
+        self.logger.debug(restore_flow)
         execute_command_map(restore_flow, self.cli_service.send_command)
 
         expected_map = OrderedDict({r'[yY]/[nN]': lambda session: session.send_line('y')})
@@ -196,27 +168,42 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
         self.cli_service.send_command(save_restore.RESTORE_CONFIGURATION_START.get_command(), expected_map=expected_map,
                                       error_map=error_map)
 
-    def _parse_url(self, url):
-        url_list = str(url).split('@')
-        if len(url_list) == 1:
-            url_params = re.search(
-                r'^(?P<protocol>.+)\://(?P<host>[^/\:\@]+)[\:]*(?P<port>\d*)(?P<path>/.+)/+(?P<filename>[^/]*)$',
-                url_list[0])
-            if not url_params:
-                raise Exception(self.__class__.__name__, 'Cannot parse url {}'.format(url))
-            url_dict = url_params.groupdict()
-        elif len(url_list) == 2:
-            url_params_1 = re.search(r'^(?P<protocol>.+)\://(?P<user>[^/\:\@]+)[\:]+(?P<password>[^/\:\@]+)$',
-                                     url_list[0])
-            url_params_2 = re.search(r'^(?P<host>[^/\:\@]+)[\:]*(?P<port>\d*)(?P<path>/.+)/+(?P<filename>[^/]*)$',
-                                     url_list[1])
-            if not url_params_1 or not url_params_2:
-                raise Exception(self.__class__.__name__, 'Cannot parse url'.format(url))
-            url_dict = url_params_1.groupdict()
-            url_dict.update(url_params_2.groupdict())
-        else:
-            raise Exception('AireOSOperations', 'Cannot parse URL, Incorrect url: {0}'.format(url))
-        return url_dict
+    def _generate_flow(self, flow_dict, result_dict):
+        flow = OrderedDict()
+        for template, key in flow_dict.iteritems():
+            if key in result_dict and result_dict[key]:
+                flow[template] = str(result_dict[key])
+        return flow
 
     def shutdown(self):
         pass
+
+
+class UrlParser(object):
+    SCHEME = 'scheme'
+    NETLOC = 'netloc'
+    PATH = 'path'
+    FILENAME = 'filename'
+    QUERY = 'query'
+    FRAGMENT = 'fragment'
+    USERNAME = 'username'
+    PASSWORD = 'password'
+    HOSTNAME = 'hostname'
+    PORT = 'port'
+
+    @staticmethod
+    def parse_url(url):
+        parsed = urlsplit(url)
+        result = {}
+        for attr in dir(UrlParser):
+            if attr.isupper() and not attr.startswith('_'):
+                attr_value = getattr(UrlParser, attr)
+                if hasattr(parsed, attr_value):
+                    value = getattr(parsed, attr_value)
+                    if attr_value == UrlParser.PATH:
+                        path, filename = os.path.split(value)
+                        result[UrlParser.PATH] = path
+                        result[UrlParser.FILENAME] = filename
+                    else:
+                        result[attr_value] = value
+        return result
