@@ -27,3 +27,4 @@ RESTORE_CONFIGURATION_PASSWORD = CommandTemplate('transfer download password {0}
 RESTORE_CONFIGURATION_PATH = CommandTemplate('transfer download path {0}', [r'.+'], ['Wrong download path'])
 RESTORE_CONFIGURATION_FILENAME = CommandTemplate('transfer download filename {0}', [r'.+'], ['Wrong download filename'])
 RESTORE_CONFIGURATION_START = CommandTemplate('transfer download start')
+RESTORE_CONFIGURATION_SAVE_TO_NVRAM = CommandTemplate('save config')
