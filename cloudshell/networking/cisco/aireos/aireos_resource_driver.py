@@ -24,9 +24,7 @@ class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInte
 
     @property
     def autoload(self):
-        if self._autoload is None:
-            self._autoload = AireOSAutoload()
-        return self._autoload
+        return AireOSAutoload()
 
     @property
     def operations(self):
