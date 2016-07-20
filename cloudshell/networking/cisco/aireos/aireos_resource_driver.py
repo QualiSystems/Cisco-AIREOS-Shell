@@ -11,13 +11,15 @@ from cloudshell.networking.cisco.aireos.operations.aireos_autoload import AireOS
 class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInterface, GlobalLock):
     __metaclass__ = ContextFromArgsMeta
 
-    def __init__(self):
+    def __init__(self, config=None):
         super(AireOSResourceDriver, self).__init__()
         self._autoload = None
         self._connectivity = None
         self._operations = None
         bootstrap = AireOSBootstrap()
         bootstrap.add_config(driver_config)
+        if config:
+            bootstrap.add_config(config)
         bootstrap.initialize()
 
     @property
