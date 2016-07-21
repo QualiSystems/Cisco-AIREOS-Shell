@@ -7,7 +7,7 @@ from cloudshell.networking.operations.interfaces.configuration_operations_interf
 from cloudshell.networking.operations.interfaces.send_command_interface import SendCommandInterface
 from cloudshell.networking.operations.interfaces.firmware_operations_interface import FirmwareOperationsInterface
 from cloudshell.networking.operations.interfaces.power_operations_interface import PowerOperationsInterface
-from cloudshell.configuration.cloudshell_shell_core_binding_keys import LOGGER, CONTEXT, API, CONFIG
+from cloudshell.configuration.cloudshell_shell_core_binding_keys import LOGGER, CONTEXT, API
 from cloudshell.configuration.cloudshell_cli_binding_keys import CLI_SERVICE
 from cloudshell.shell.core.context_utils import get_attribute_by_name
 import cloudshell.networking.cisco.aireos.operations.templates.save_restore_configuration as save_restore
@@ -44,12 +44,12 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
         system_name = self.context.resource.fullname
         system_name = re.sub(r'[\.\s]', '_', system_name)
 
-        if source_filename and source_filename.lower() == 'startup':
+        if source_filename and source_filename.lower() == 'running':
             config_type = 'config'
-        elif source_filename and source_filename.lower() == 'running':
-            config_type = 'run-config'
         else:
-            raise Exception(self.__class__.__name__, 'Device does not support {} config type'.format(source_filename or 'None'))
+            raise Exception(self.__class__.__name__,
+                            'Device does not support saving \"{}\" configuration type'.format(
+                                source_filename or 'None'))
 
         file_name = "{0}-{1}-{2}".format(system_name, source_filename, time.strftime("%d%m%y-%H%M%S", time.localtime()))
         if not destination_host:
@@ -98,13 +98,12 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
             raise Exception('AireOSOperations', 'Configuration URL cannot be empty')
 
         if not restore_method or restore_method.lower() != 'override':
-            raise Exception(self.__class__.__name__, 'Device does not support restore method {}, '
+            raise Exception(self.__class__.__name__, 'Device does not support restoring in \"{}\" method, '
                                                      '"override" is only supported'.format(restore_method or 'None'))
 
-        if not config_type or config_type.lower() not in ['running', 'startup']:
-            raise Exception(self.__class__.__name__, 'Device does not support configuration type {}, '
-                                                     '"running" and "startup" is only supported'.format(config_type or 'None'))
-
+        if not config_type or config_type.lower() != 'running':
+            raise Exception(self.__class__.__name__, 'Device does not support restoring in \"{}\" configuration type, '
+                                                     '"running" is only supported'.format(config_type or 'None'))
 
         connection_dict = UrlParser.parse_url(source_file)
         self.logger.debug('Connection dict: ' + str(connection_dict))
@@ -130,14 +129,9 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
         expected_map = OrderedDict({r'[yY]/[nN]': lambda session: session.send_line('y')})
         error_map = OrderedDict({r'[Ee]rror:': 'Restore configuration error, see logs for details'})
 
-        self.cli_service.send_command(save_restore.RESTORE_CONFIGURATION_START.get_command(), expected_map=expected_map,
-                                      error_map=error_map)
-
-        if config_type.lower() == 'running':
-            self.cli_service.send_command(save_restore.RESTORE_CONFIGURATION_SAVE_TO_NVRAM.get_command(),
-                                          expected_map=expected_map,
-                                          error_map=error_map)
-
+        self.cli_service.send_command(save_restore.RESTORE_CONFIGURATION_START.get_command(),
+                                      expected_str=r'System being reset.',
+                                      expected_map=expected_map, error_map=error_map)
 
     def send_config_command(self, command):
         return self.cli_service.send_config_command(command)
