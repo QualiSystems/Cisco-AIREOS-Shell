@@ -8,7 +8,8 @@ from cloudshell.networking.operations.interfaces.send_command_interface import S
 from cloudshell.networking.operations.interfaces.firmware_operations_interface import FirmwareOperationsInterface
 from cloudshell.networking.operations.interfaces.power_operations_interface import PowerOperationsInterface
 from cloudshell.configuration.cloudshell_shell_core_binding_keys import LOGGER, CONTEXT, API
-from cloudshell.configuration.cloudshell_cli_binding_keys import CLI_SERVICE
+from cloudshell.configuration.cloudshell_cli_binding_keys import CLI_SERVICE, SESSION
+from cloudshell.shell.core.config_utils import override_attributes_from_config
 from cloudshell.shell.core.context_utils import get_attribute_by_name
 import cloudshell.networking.cisco.aireos.operations.templates.save_restore_configuration as save_restore
 from cloudshell.cli.command_template.command_template_service import execute_command_map
@@ -19,12 +20,23 @@ import re
 
 class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, FirmwareOperationsInterface,
                        PowerOperationsInterface):
+    SESSION_WAIT_TIMEOUT = 600
+    DEFAULT_PROMPT = r'[>$#]\s*$'
+
     def __init__(self, cli_service=None, logger=None):
         self._cli_service = cli_service
+        self._logger = logger
+        overridden_config = override_attributes_from_config(AireOSOperations)
+        self._session_wait_timeout = overridden_config.SESSION_WAIT_TIMEOUT
+        self._default_prompt = overridden_config.DEFAULT_PROMPT
 
     @property
     def logger(self):
-        return inject.instance(LOGGER)
+        if self._logger:
+            logger = self._logger
+        else:
+            logger = inject.instance(LOGGER)
+        return logger
 
     @property
     def cli_service(self):
@@ -40,6 +52,10 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
     def api(self):
         return inject.instance(API)
 
+    @property
+    def session(self):
+        return inject.instance(SESSION)
+
     def save_configuration(self, destination_host, source_filename, vrf=None):
         system_name = self.context.resource.fullname
         system_name = re.sub(r'[\.\s]', '_', system_name)
@@ -48,8 +64,8 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
             config_type = 'config'
         else:
             raise Exception(self.__class__.__name__,
-                            'Device does not support saving \"{}\" configuration type'.format(
-                                source_filename or 'None'))
+                            'Device does not support saving \"{}\" configuration type, \"running\" '
+                            'is only supported'.format(source_filename or 'None'))
 
         file_name = "{0}-{1}-{2}".format(system_name, source_filename, time.strftime("%d%m%y-%H%M%S", time.localtime()))
         if not destination_host:
@@ -132,6 +148,36 @@ class AireOSOperations(ConfigurationOperationsInterface, SendCommandInterface, F
         self.cli_service.send_command(save_restore.RESTORE_CONFIGURATION_START.get_command(),
                                       expected_str=r'System being reset.',
                                       expected_map=expected_map, error_map=error_map)
+        session = self.session
+        if not session.session_type.lower() == 'console':
+            self._wait_session_up(self.session)
+
+    def _wait_session_up(self, session):
+        self.logger.debug('Waiting session up')
+        waiting_reboot_time = time.time()
+        while True:
+            try:
+                if time.time() - waiting_reboot_time > self._session_wait_timeout:
+                    raise Exception(self.__class__.__name__,
+                                    'Session cannot start reboot after {} sec.'.format(self._session_wait_timeout))
+                session.send_line('')
+                time.sleep(1)
+            except:
+                self.logger.debug('Session disconnected')
+                break
+        reboot_time = time.time()
+        while True:
+            if time.time() - reboot_time > self._session_wait_timeout:
+                self.cli_service.destroy_threaded_session(session=session)
+                raise Exception(self.__class__.__name__,
+                                'Session cannot connect after {} sec.'.format(self._session_wait_timeout))
+            try:
+                self.logger.debug('Reconnect retry')
+                session.connect(re_string=self._default_prompt)
+                self.logger.debug('Session connected')
+                break
+            except:
+                time.sleep(5)
 
     def send_config_command(self, command):
         return self.cli_service.send_config_command(command)

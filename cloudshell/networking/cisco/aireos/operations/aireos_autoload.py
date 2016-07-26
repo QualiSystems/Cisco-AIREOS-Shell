@@ -14,7 +14,8 @@ class AireOSAutoload(AutoloadOperationsInterface):
     PORT_DESCRIPTION_FILTER = [r'[Vv]irtual', r'[Cc]hannel']
 
     def __init__(self, snmp_hander=None, logger=None):
-        self._snmp_handler = snmp_hander
+        self._snmp_handler = None
+        self.snmp_handler = snmp_hander
         self._root = RootElement()
         self._chassis = None
         self._ports = {}
@@ -29,9 +30,10 @@ class AireOSAutoload(AutoloadOperationsInterface):
 
     @snmp_handler.setter
     def snmp_handler(self, snmp_handler):
-        self._snmp_handler = snmp_handler
-        path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'mibs'))
-        self._snmp_handler.update_mib_sources(path)
+        if snmp_handler:
+            self._snmp_handler = snmp_handler
+            path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'mibs'))
+            self._snmp_handler.update_mib_sources(path)
 
     @property
     def logger(self):
