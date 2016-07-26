@@ -2,6 +2,7 @@ from cloudshell.networking.autoload.networking_model import RootElement, Chassis
 from cloudshell.networking.autoload.networking_attributes import RootAttributes, ChassisAttributes, PortAttributes, \
     PortChannelAttributes
 from cloudshell.networking.operations.interfaces.autoload_operations_interface import AutoloadOperationsInterface
+from cloudshell.shell.core.config_utils import override_attributes_from_config
 import inject
 from cloudshell.configuration.cloudshell_snmp_binding_keys import SNMP_HANDLER
 from cloudshell.configuration.cloudshell_shell_core_binding_keys import LOGGER
@@ -12,6 +13,7 @@ import re
 
 class AireOSAutoload(AutoloadOperationsInterface):
     PORT_DESCRIPTION_FILTER = [r'[Vv]irtual', r'[Cc]hannel']
+    SUPPORTED_OS = [r'Controller']
 
     def __init__(self, snmp_hander=None, logger=None):
         self._snmp_handler = None
@@ -21,6 +23,9 @@ class AireOSAutoload(AutoloadOperationsInterface):
         self._ports = {}
         self._snmp_cache = {}
         self._logger = logger
+
+        overridden_config = override_attributes_from_config(AireOSAutoload)
+        self.supported_os = overridden_config.SUPPORTED_OS
 
     @property
     def snmp_handler(self):
@@ -231,7 +236,28 @@ class AireOSAutoload(AutoloadOperationsInterface):
     def _convert_port_description(self, description):
         return description.replace('/', '-').replace(' ', '').replace(':', '-')
 
+    def _is_valid_device_os(self):
+        """Validate device OS using snmp
+            :return: True or False
+        """
+
+        system_description = self._snmp_request(('SNMPv2-MIB', 'sysDescr', 0))
+        self.logger.debug('Detected system description: \'{0}\''.format(system_description))
+        result = re.search(r"({0})".format("|".join(self.supported_os)),
+                           system_description,
+                           flags=re.DOTALL | re.IGNORECASE)
+
+        if result:
+            return True
+        else:
+            error_message = 'Incompatible driver! Please use this driver for \'{0}\' operation system(s)'. \
+                format(str(tuple(self.supported_os)))
+            self.logger.error(error_message)
+            return False
+
     def discover(self):
+        if not self._is_valid_device_os():
+            raise Exception(self.__class__.__name__, 'Unsupported device OS, see logs for more details')
         self._build_root_elements()
         self._build_chassis_elements()
         self._build_ports()

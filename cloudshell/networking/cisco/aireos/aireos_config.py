@@ -37,3 +37,5 @@ HE_MAX_READ_RETRIES = 10
 ERROR_MAP = OrderedDict({r'[Ee]rror:': 'Command error, see logs for details'})
 
 POOL_TIMEOUT = 600
+
+SUPPORTED_OS = [r'[Cc]ontroller']
