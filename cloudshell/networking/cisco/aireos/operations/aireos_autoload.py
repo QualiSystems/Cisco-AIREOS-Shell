@@ -93,15 +93,15 @@ class AireOSAutoload(AutoloadOperationsInterface):
 
         if entity_table is not None and len(entity_table) > 0:
             for id, table in entity_table.iteritems():
-                if re.search(r'[Cc]hassis', self._get_from_table('entPhysicalName', table)) and \
-                                self._get_from_table('entPhysicalParentRelPos', table) == '-1':
-                    chassis_id = 0
+                if re.search(r'[Cc]hassis', table.get('entPhysicalName')) and table.get(
+                        'entPhysicalParentRelPos') == '-1':
+                    chassis_id = id
                     entity_data = table
                     break
         else:
             raise Exception('_build_chassis_elements', 'Entity table is empty')
 
-        if chassis_id is not None and entity_data is not None:
+        if chassis_id and entity_data:
             self._chassis = Chassis(chassis_id)
         else:
             raise Exception('_build_chassis_elements', 'Cannot find chassis data in entity table')
