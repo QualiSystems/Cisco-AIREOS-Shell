@@ -13,7 +13,8 @@ install:
     - pip install coveralls
 
 script:
-    - nosetests --with-coverage --cover-package=cloudshell.networking.cisco.aireos tests
+#    - nosetests --with-coverage --cover-package=cloudshell.networking.cisco.aireos tests
+    - nosetests --with-coverage tests
 
 after_success:
     - coveralls
