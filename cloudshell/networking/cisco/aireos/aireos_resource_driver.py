@@ -10,8 +10,8 @@ from cloudshell.networking.cisco.aireos.operations.aireos_autoload import AireOS
 
 class AireOSResourceDriver(ResourceDriverInterface, NetworkingResourceDriverInterface, GlobalLock):
     __metaclass__ = ContextFromArgsMeta
-
     def __init__(self, config=None):
+
         super(AireOSResourceDriver, self).__init__()
         self._autoload = None
         self._connectivity = None

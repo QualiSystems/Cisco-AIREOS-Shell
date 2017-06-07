@@ -1,1 +1,4 @@
-cloudshell-networking>=2.1,<2.2
+nose
+coverage
+unittest2
+mock
